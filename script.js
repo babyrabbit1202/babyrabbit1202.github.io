@@ -30,13 +30,20 @@ function showGreeting() {
 // 複製祝福語
 function copyToClipboard() {
     const text = resultContent.textContent;
-    navigator.clipboard.writeText(text)
-        .then(() => {
-            showCopySuccess();
-        })
-        .catch(err => {
-            console.error('複製失敗:', err);
-        });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                showCopySuccess();
+            })
+            .catch(err => {
+                console.error('複製失敗 (navigator.clipboard):', err);
+                showCopyError(); // Default error message for modern API failure
+            });
+    } else {
+        // Fallback for browsers that don't support navigator.clipboard.writeText
+        console.warn('navigator.clipboard.writeText not supported. Suggesting manual copy.');
+        showCopyError('瀏覽器不支援自動複製，請手動複製');
+    }
 }
 
 // 顯示複製成功提示
@@ -51,10 +58,28 @@ function showCopySuccess() {
     }, 1500);
 }
 
+// 通用通知顯示函數
+function showNotification(message, className, duration) {
+    const notificationMsg = document.createElement('div');
+    notificationMsg.className = className;
+    notificationMsg.textContent = message;
+    document.body.appendChild(notificationMsg);
+
+    setTimeout(() => {
+        notificationMsg.remove();
+    }, duration);
+}
+
+// 顯示複製失敗提示
+function showCopyError(message) {
+    const defaultMessage = '複製失敗，請重試或手動複製';
+    showNotification(message || defaultMessage, 'copy-error', 3000);
+}
+
 // 事件監聽
 generateBtn.addEventListener('click', () => {
     // 播放音效
-    const audio = new Audio('new-year.mp3');
+    const audio = new Audio('assets/audio/new-year.mp3');
     audio.play();
     
     // 按鈕動畫
