@@ -421,6 +421,9 @@
             h: finalH,
             roof: choose(["flat", "antenna", "tank", "step"]),
             depth: rand(4, 14),
+            breathPhase: rand(0, TAU),
+            breathSpeed: rand(0.18, 0.62),
+            breathStrength: rand(0.08, 0.22),
             windows: [],
             index
           };
@@ -553,11 +556,28 @@
         ctx.fillRect(0, ground, width, height - ground);
 
         for (const b of buildings) {
+          const breath = 0.5 + 0.5 * Math.sin(t * b.breathSpeed + b.breathPhase);
+          const buildingGlow = 0.04 + breath * b.breathStrength;
+
           ctx.save();
           ctx.fillStyle = p.building;
           ctx.fillRect(b.x, b.y, b.w, b.h);
           ctx.fillStyle = p.buildingSide;
           ctx.fillRect(b.x + b.w - b.depth, b.y + b.depth, b.depth, b.h - b.depth);
+
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          ctx.globalAlpha = buildingGlow;
+          const breathGradient = ctx.createLinearGradient(b.x, b.y, b.x + b.w, b.y + b.h);
+          breathGradient.addColorStop(0, "rgba(142, 248, 255, 0.22)");
+          breathGradient.addColorStop(0.42, "rgba(255, 98, 207, 0.24)");
+          breathGradient.addColorStop(1, "rgba(255, 215, 122, 0.14)");
+          ctx.fillStyle = breathGradient;
+          ctx.fillRect(b.x, b.y, b.w, b.h);
+          ctx.strokeStyle = `rgba(142, 248, 255, ${0.04 + breath * 0.12})`;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+          ctx.restore();
 
           if (b.roof === "antenna") {
             ctx.strokeStyle = "rgba(80, 83, 124, 0.75)";
