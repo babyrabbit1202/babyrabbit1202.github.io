@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Blaster</title>
+  <style>
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: #0b1719;
+      color: #f7f1df;
+      font-family: Arial, "Noto Sans TC", sans-serif;
+    }
+    a { color: #b7ef5f; }
+  </style>
+</head>
+<body>
+  <main id="status">載入 Word Blaster...</main>
+  <script>
+    const source = "https://raw.githubusercontent.com/babyrabbit1202/word-blaster/main/index.html";
+    fetch(source, { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.text();
+      })
+      .then((html) => {
+        document.open();
+        document.write(html);
+        document.close();
+      })
+      .catch((error) => {
+        document.getElementById("status").innerHTML =
+          `載入失敗：${error.message}<br><a href="https://github.com/babyrabbit1202/word-blaster/blob/main/index.html">打開 GitHub 原始檔</a>`;
+      });
+  </script>
+</body>
+</html>
