@@ -1,0 +1,1135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lo-Fi 音樂動畫產生器</title>
+  <script src="https://unpkg.com/tone@14.8.49/build/Tone.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f8d9ff;
+      --muted: rgba(248, 217, 255, 0.72);
+      --panel: rgba(12, 10, 28, 0.55);
+      --panel-line: rgba(255, 164, 236, 0.28);
+      --pink: #ff62cf;
+      --cyan: #8ef8ff;
+      --amber: #ffd77a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #070816;
+      font-family: "Segoe UI", "Noto Sans TC", system-ui, sans-serif;
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    .controls {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      z-index: 2;
+      width: min(420px, calc(100vw - 36px));
+      padding: 14px;
+      border: 1px solid var(--panel-line);
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(15, 13, 34, 0.78), rgba(36, 17, 49, 0.52));
+      box-shadow: 0 16px 60px rgba(0, 0, 0, 0.45), inset 0 1px rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+      backdrop-filter: blur(18px);
+    }
+
+    .topline {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0 0 2px;
+      color: #fff7ff;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-shadow: 0 0 18px rgba(255, 98, 207, 0.8);
+    }
+
+    .status {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      min-width: 42px;
+      height: 38px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font: inherit;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: 0 0 0 rgba(255, 98, 207, 0);
+      transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    button.regen {
+      min-width: 78px;
+      padding: 0 12px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.62;
+    }
+
+    button:hover,
+    button:focus-visible {
+      border-color: rgba(255, 139, 225, 0.85);
+      background: rgba(255, 98, 207, 0.18);
+      box-shadow: 0 0 24px rgba(255, 98, 207, 0.38);
+      outline: none;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: rgba(255, 244, 255, 0.86);
+      font-size: 12px;
+    }
+
+    select,
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--pink);
+    }
+
+    select {
+      height: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      background: rgba(7, 8, 22, 0.72);
+      color: #fff;
+      padding: 0 10px;
+      font: inherit;
+    }
+
+    .wide-control {
+      grid-column: 1 / -1;
+    }
+
+    .track-control {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .track-control label {
+      min-width: 0;
+    }
+
+    button.next-track {
+      min-width: 54px;
+      height: 34px;
+      padding: 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .meter {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: repeat(16, 4px);
+      align-items: end;
+      gap: 4px;
+      height: 48px;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(142, 248, 255, 0.25);
+      background: rgba(4, 9, 24, 0.42);
+      backdrop-filter: blur(14px);
+    }
+
+    .bar {
+      width: 4px;
+      height: 8px;
+      border-radius: 6px;
+      background: linear-gradient(#ff62cf, #8ef8ff);
+      box-shadow: 0 0 12px rgba(142, 248, 255, 0.8);
+      opacity: 0.62;
+    }
+
+    @media (max-width: 640px) {
+      .controls {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        width: auto;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .track-control {
+        grid-template-columns: 1fr;
+      }
+
+      .meter {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      button {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene" aria-label="Lo-Fi 深夜城市動畫"></canvas>
+
+  <section class="controls" aria-label="Lo-Fi 音樂控制">
+    <div class="topline">
+      <div>
+        <h1>Lo-Fi 音樂動畫產生器</h1>
+        <p class="status" id="status">按播放後即時生成和弦、鼓組、雨聲與夜城動畫。</p>
+      </div>
+      <div class="buttons">
+        <button id="play" type="button" title="播放或暫停">▶</button>
+        <button id="newScene" class="regen" type="button" title="重新生成城市與旋律" aria-label="重新生成城市與旋律">↻ 新曲</button>
+      </div>
+    </div>
+    <div class="grid">
+      <label>
+        氣氛
+        <select id="mood">
+          <option value="midnight">午夜紫</option>
+          <option value="rainroom">雨窗藍</option>
+          <option value="autumn">秋夜粉</option>
+        </select>
+      </label>
+      <label>
+        速度 <span id="tempoText">72 BPM</span>
+        <input id="tempo" type="range" min="58" max="92" value="72">
+      </label>
+      <label>
+        雨量 <span id="rainText">68%</span>
+        <input id="rain" type="range" min="20" max="100" value="68">
+      </label>
+      <label>
+        灰塵光點 <span id="dustText">56%</span>
+        <input id="dust" type="range" min="15" max="100" value="56">
+      </label>
+      <label>
+        音樂來源
+        <select id="musicSource">
+          <option value="generated">Tone.js 生成</option>
+          <option value="online">線上 Lo-Fi 歌單</option>
+        </select>
+      </label>
+      <div class="track-control">
+        <label>
+          線上曲目
+          <select id="trackSelect"></select>
+        </label>
+        <button id="nextTrack" class="next-track" type="button" title="下一首線上曲目">下一首</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="meter" id="meter" aria-hidden="true"></div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById("scene");
+      const ctx = canvas.getContext("2d");
+      const status = document.getElementById("status");
+      const playButton = document.getElementById("play");
+      const newSceneButton = document.getElementById("newScene");
+      const moodSelect = document.getElementById("mood");
+      const tempoSlider = document.getElementById("tempo");
+      const tempoText = document.getElementById("tempoText");
+      const rainSlider = document.getElementById("rain");
+      const rainText = document.getElementById("rainText");
+      const dustSlider = document.getElementById("dust");
+      const dustText = document.getElementById("dustText");
+      const musicSourceSelect = document.getElementById("musicSource");
+      const trackSelect = document.getElementById("trackSelect");
+      const nextTrackButton = document.getElementById("nextTrack");
+      const meter = document.getElementById("meter");
+
+      const TAU = Math.PI * 2;
+      const rand = (min, max) => min + Math.random() * (max - min);
+      const choose = (items) => items[Math.floor(Math.random() * items.length)];
+      const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+      let width = 0;
+      let height = 0;
+      let dpr = 1;
+      let buildings = [];
+      let stars = [];
+      let rain = [];
+      let leaves = [];
+      let dust = [];
+      let seedHue = rand(0, 360);
+      let animationTime = 0;
+      let lastTime = performance.now();
+      let highestBuilding = null;
+
+      const palettes = {
+        midnight: {
+          skyTop: "#070817",
+          skyMid: "#17113a",
+          skyLow: "#351747",
+          haze: "rgba(255, 98, 207, 0.17)",
+          building: "#070713",
+          buildingSide: "#101023",
+          window: "#ffd77a",
+          moon: "#fff0cf"
+        },
+        rainroom: {
+          skyTop: "#05101f",
+          skyMid: "#10224c",
+          skyLow: "#241840",
+          haze: "rgba(142, 248, 255, 0.15)",
+          building: "#050914",
+          buildingSide: "#10172a",
+          window: "#bdf7ff",
+          moon: "#e9fcff"
+        },
+        autumn: {
+          skyTop: "#10071a",
+          skyMid: "#271241",
+          skyLow: "#4a193c",
+          haze: "rgba(255, 180, 111, 0.16)",
+          building: "#0b0710",
+          buildingSide: "#1a1022",
+          window: "#ffbc73",
+          moon: "#ffe7f7"
+        }
+      };
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        generateScene();
+      }
+
+      function generateScene() {
+        seedHue = rand(0, 360);
+        createStars();
+        createBuildings();
+        createParticles();
+      }
+
+      function createStars() {
+        stars = [];
+        const count = Math.floor((width * height) / 8000);
+        for (let i = 0; i < count; i++) {
+          stars.push({
+            x: rand(0, width),
+            y: rand(8, height * 0.54),
+            r: rand(0.5, 1.8),
+            phase: rand(0, TAU),
+            speed: rand(0.7, 2.4),
+            alpha: rand(0.25, 0.95)
+          });
+        }
+      }
+
+      function createBuildings() {
+        buildings = [];
+        const ground = height * 0.93;
+        let x = -20;
+        let index = 0;
+        highestBuilding = null;
+
+        while (x < width + 40) {
+          const w = rand(34, 92);
+          const h = rand(height * 0.22, height * 0.64);
+          const specialBoost = Math.abs(x + w / 2 - width / 2) < width * 0.08 ? height * 0.2 : 0;
+          const finalH = clamp(h + specialBoost, height * 0.24, height * 0.78);
+          const b = {
+            x,
+            y: ground - finalH,
+            w,
+            h: finalH,
+            roof: choose(["flat", "antenna", "tank", "step"]),
+            depth: rand(4, 14),
+            windows: [],
+            index
+          };
+
+          const rows = Math.floor((finalH - 28) / 17);
+          const cols = Math.floor((w - 14) / 12);
+          for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+              if (Math.random() < 0.42) {
+                b.windows.push({
+                  x: 8 + col * 12 + rand(-0.8, 0.8),
+                  y: 18 + row * 17 + rand(-0.8, 0.8),
+                  w: rand(4, 7),
+                  h: rand(6, 10),
+                  phase: rand(0, TAU),
+                  speed: rand(0.35, 1.35),
+                  base: rand(0.08, 0.48)
+                });
+              }
+            }
+          }
+
+          buildings.push(b);
+          if (!highestBuilding || Math.abs(b.x + b.w / 2 - width / 2) < Math.abs(highestBuilding.x + highestBuilding.w / 2 - width / 2)) {
+            highestBuilding = b;
+          }
+          x += w + rand(2, 9);
+          index++;
+        }
+
+        if (highestBuilding) {
+          highestBuilding.h = Math.max(highestBuilding.h, height * 0.72);
+          highestBuilding.y = ground - highestBuilding.h;
+          highestBuilding.roof = "flat";
+        }
+      }
+
+      function createParticles() {
+        rain = [];
+        leaves = [];
+        dust = [];
+
+        for (let i = 0; i < 260; i++) {
+          rain.push({
+            x: rand(-width * 0.2, width * 1.2),
+            y: rand(-height, height),
+            len: rand(12, 30),
+            speed: rand(520, 920),
+            drift: rand(-95, -35),
+            alpha: rand(0.16, 0.46)
+          });
+        }
+
+        for (let i = 0; i < 34; i++) {
+          leaves.push({
+            x: rand(-60, width + 60),
+            y: rand(-height, height),
+            size: rand(5, 13),
+            speed: rand(20, 68),
+            drift: rand(-22, 48),
+            spin: rand(-2.8, 2.8),
+            phase: rand(0, TAU),
+            hue: rand(28, 50)
+          });
+        }
+
+        for (let i = 0; i < 120; i++) {
+          dust.push({
+            x: rand(0, width),
+            y: rand(0, height),
+            r: rand(0.6, 2.1),
+            speed: rand(3, 14),
+            phase: rand(0, TAU),
+            alpha: rand(0.15, 0.75)
+          });
+        }
+      }
+
+      function drawSky(t) {
+        const p = palettes[moodSelect.value];
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, p.skyTop);
+        gradient.addColorStop(0.52, p.skyMid);
+        gradient.addColorStop(1, p.skyLow);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        const haze = ctx.createRadialGradient(width * 0.5, height * 0.72, 0, width * 0.5, height * 0.72, width * 0.7);
+        haze.addColorStop(0, p.haze);
+        haze.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = haze;
+        ctx.fillRect(0, 0, width, height);
+
+        const moonX = width * 0.78;
+        const moonY = height * 0.18;
+        const moonR = Math.max(34, Math.min(width, height) * 0.055);
+        ctx.save();
+        ctx.shadowColor = p.moon;
+        ctx.shadowBlur = 42;
+        ctx.fillStyle = p.moon;
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, moonR, 0, TAU);
+        ctx.fill();
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.24)";
+        ctx.beginPath();
+        ctx.arc(moonX - moonR * 0.22, moonY - moonR * 0.08, moonR * 0.18, 0, TAU);
+        ctx.arc(moonX + moonR * 0.18, moonY + moonR * 0.16, moonR * 0.12, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+
+        for (const star of stars) {
+          const flicker = star.alpha * (0.58 + 0.42 * Math.sin(t * star.speed + star.phase));
+          ctx.save();
+          ctx.globalAlpha = flicker;
+          ctx.shadowColor = "#fff7ff";
+          ctx.shadowBlur = 10;
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.arc(star.x, star.y, star.r, 0, TAU);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      function drawBuildings(t) {
+        const p = palettes[moodSelect.value];
+        const ground = height * 0.93;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.24)";
+        ctx.fillRect(0, ground, width, height - ground);
+
+        for (const b of buildings) {
+          ctx.save();
+          ctx.fillStyle = p.building;
+          ctx.fillRect(b.x, b.y, b.w, b.h);
+          ctx.fillStyle = p.buildingSide;
+          ctx.fillRect(b.x + b.w - b.depth, b.y + b.depth, b.depth, b.h - b.depth);
+
+          if (b.roof === "antenna") {
+            ctx.strokeStyle = "rgba(80, 83, 124, 0.75)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(b.x + b.w * 0.5, b.y);
+            ctx.lineTo(b.x + b.w * 0.5, b.y - rand(12, 30));
+            ctx.stroke();
+          } else if (b.roof === "tank") {
+            ctx.fillStyle = "#0d0d1d";
+            ctx.fillRect(b.x + b.w * 0.25, b.y - 10, b.w * 0.5, 10);
+          } else if (b.roof === "step") {
+            ctx.fillStyle = "#0d0d1d";
+            ctx.fillRect(b.x + b.w * 0.18, b.y - 13, b.w * 0.64, 13);
+            ctx.fillRect(b.x + b.w * 0.32, b.y - 24, b.w * 0.36, 11);
+          }
+
+          for (const w of b.windows) {
+            const pulse = w.base + 0.52 * (0.5 + 0.5 * Math.sin(t * w.speed + w.phase));
+            ctx.save();
+            ctx.globalAlpha = pulse;
+            ctx.shadowColor = p.window;
+            ctx.shadowBlur = 12 * pulse;
+            ctx.fillStyle = p.window;
+            ctx.fillRect(b.x + w.x, b.y + w.y, w.w, w.h);
+            ctx.restore();
+          }
+          ctx.restore();
+        }
+
+        drawNeonSign(t);
+      }
+
+      function drawNeonSign(t) {
+        if (!highestBuilding) return;
+        const signW = Math.min(270, Math.max(190, width * 0.34));
+        const signH = 48;
+        const x = highestBuilding.x + highestBuilding.w / 2 - signW / 2;
+        const y = highestBuilding.y - signH - 18;
+        const glow = 0.75 + 0.25 * Math.sin(t * 2.2);
+
+        ctx.save();
+        ctx.strokeStyle = `rgba(255, 98, 207, ${0.55 + glow * 0.25})`;
+        ctx.lineWidth = 3;
+        ctx.shadowColor = "#ff62cf";
+        ctx.shadowBlur = 34;
+        ctx.strokeRect(x, y, signW, signH);
+        ctx.fillStyle = "rgba(32, 5, 28, 0.68)";
+        ctx.fillRect(x + 3, y + 3, signW - 6, signH - 6);
+
+        ctx.shadowBlur = 28;
+        ctx.fillStyle = "#ffd1f5";
+        ctx.font = `800 ${Math.max(18, Math.min(28, signW / 11))}px "Segoe UI", sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("RingRing CHENG", x + signW / 2, y + signH / 2 + 1);
+
+        ctx.strokeStyle = "rgba(255, 98, 207, 0.52)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + 26, y + signH);
+        ctx.lineTo(highestBuilding.x + highestBuilding.w * 0.34, highestBuilding.y);
+        ctx.moveTo(x + signW - 26, y + signH);
+        ctx.lineTo(highestBuilding.x + highestBuilding.w * 0.66, highestBuilding.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawRain(dt) {
+        const density = Number(rainSlider.value) / 100;
+        ctx.save();
+        ctx.strokeStyle = "rgba(169, 224, 255, 0.55)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const visible = Math.floor(rain.length * density);
+        for (let i = 0; i < visible; i++) {
+          const drop = rain[i];
+          drop.x += drop.drift * dt;
+          drop.y += drop.speed * dt;
+          if (drop.y > height + 40 || drop.x < -120) {
+            drop.x = rand(0, width + width * 0.25);
+            drop.y = rand(-120, -20);
+          }
+          ctx.globalAlpha = drop.alpha;
+          ctx.moveTo(drop.x, drop.y);
+          ctx.lineTo(drop.x + drop.drift * 0.035, drop.y + drop.len);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawLeaves(t, dt) {
+        for (const leaf of leaves) {
+          leaf.x += (leaf.drift + Math.sin(t + leaf.phase) * 24) * dt;
+          leaf.y += leaf.speed * dt;
+          leaf.phase += leaf.spin * dt;
+          if (leaf.y > height + 30 || leaf.x < -90 || leaf.x > width + 90) {
+            leaf.x = rand(-40, width + 40);
+            leaf.y = rand(-160, -30);
+            leaf.drift = rand(-22, 48);
+          }
+
+          ctx.save();
+          ctx.translate(leaf.x, leaf.y);
+          ctx.rotate(leaf.phase);
+          ctx.fillStyle = `hsla(${leaf.hue}, 82%, 62%, 0.78)`;
+          ctx.shadowColor = `hsla(${leaf.hue}, 90%, 60%, 0.45)`;
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, leaf.size * 0.48, leaf.size, 0, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(80, 32, 12, 0.35)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(0, -leaf.size * 0.8);
+          ctx.lineTo(0, leaf.size * 0.8);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      function drawDust(t, dt) {
+        const density = Number(dustSlider.value) / 100;
+        const visible = Math.floor(dust.length * density);
+        for (let i = 0; i < visible; i++) {
+          const speck = dust[i];
+          speck.y -= speck.speed * dt;
+          speck.x += Math.sin(t * 0.7 + speck.phase) * 5 * dt;
+          if (speck.y < -8) {
+            speck.y = height + 8;
+            speck.x = rand(0, width);
+          }
+          const alpha = speck.alpha * (0.55 + 0.45 * Math.sin(t * 1.4 + speck.phase));
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.shadowColor = `hsl(${seedHue}, 100%, 78%)`;
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = "#fff3ff";
+          ctx.beginPath();
+          ctx.arc(speck.x, speck.y, speck.r, 0, TAU);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      function drawReflection(t) {
+        const y = height * 0.91;
+        ctx.save();
+        ctx.globalAlpha = 0.26;
+        for (let i = 0; i < 18; i++) {
+          const yy = y + i * 8;
+          const w = 120 + Math.sin(t * 1.2 + i) * 48;
+          const x = width * 0.5 - w / 2 + Math.sin(t + i * 0.8) * 20;
+          const gradient = ctx.createLinearGradient(x, yy, x + w, yy);
+          gradient.addColorStop(0, "rgba(255, 98, 207, 0)");
+          gradient.addColorStop(0.45, "rgba(255, 98, 207, 0.55)");
+          gradient.addColorStop(1, "rgba(142, 248, 255, 0)");
+          ctx.strokeStyle = gradient;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x, yy);
+          ctx.lineTo(x + w, yy);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function render(now) {
+        const dt = Math.min(0.033, (now - lastTime) / 1000);
+        lastTime = now;
+        animationTime += dt;
+        drawSky(animationTime);
+        drawReflection(animationTime);
+        drawBuildings(animationTime);
+        drawDust(animationTime, dt);
+        drawLeaves(animationTime, dt);
+        drawRain(dt);
+        requestAnimationFrame(render);
+      }
+
+      let audioReady = false;
+      let playing = false;
+      let synth = null;
+      let bass = null;
+      let keys = null;
+      let noise = null;
+      let kick = null;
+      let snare = null;
+      let hat = null;
+      let chordPart = null;
+      let bassPart = null;
+      let melodyPart = null;
+      let drumLoop = null;
+      let analyser = null;
+      let meterBars = [];
+      let regenerating = false;
+      let activeSource = "generated";
+      let trackIndex = 0;
+      let playlistAudio = null;
+
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      const progressions = [
+        [["C3", "E3", "G3", "B3"], ["A2", "C3", "E3", "G3"], ["F2", "A2", "C3", "E3"], ["G2", "B2", "D3", "F3"]],
+        [["D3", "F3", "A3", "C4"], ["Bb2", "D3", "F3", "A3"], ["G2", "Bb2", "D3", "F3"], ["A2", "C3", "E3", "G3"]],
+        [["E3", "G3", "B3", "D4"], ["C3", "E3", "G3", "B3"], ["A2", "C3", "E3", "G3"], ["B2", "D3", "F#3", "A3"]]
+      ];
+
+      const onlineTracks = [
+        {
+          title: "Mellow - 10 Minutes LOFI Chill Instrumental Beat",
+          license: "Public Domain Mark 1.0",
+          page: "https://archive.org/details/yt-5s.com-no-copyright-10-minutes-lofi-chill-instrumental-beat-mellow-128-kbps",
+          url: "https://archive.org/download/yt-5s.com-no-copyright-10-minutes-lofi-chill-instrumental-beat-mellow-128-kbps/yt5s.com%20-%20%5BNo%20Copyright%5D%2010%20Minutes%20%E2%99%AB%20LOFI%20Chill%20Instrumental%20Beat%20-%20_Mellow_%20(128%20kbps).mp3"
+        },
+        {
+          title: "Days Like These - Chill Lofi Hip Hop",
+          license: "No Copyright Music, archived on Internet Archive",
+          page: "https://archive.org/details/soundcloud-557089965",
+          url: "https://archive.org/download/soundcloud-557089965/No_Copyright_Music_Chill_Lofi_Hip_Hop_Instrumental_Copyright_Free_Music_-_Days_Like_These-557089965.mp3"
+        },
+        {
+          title: "Lowtone Music - Coffee & Chill",
+          license: "CC BY-NC-ND 3.0",
+          page: "https://archive.org/details/jamendo-585174",
+          url: "https://archive.org/download/jamendo-585174/01-2214206-Lowtone%20Music-Coffee%20_amp_%20Chill.mp3"
+        },
+        {
+          title: "An Ki - Chill Jazz x LoFi 90s",
+          license: "CC BY-NC-ND 3.0",
+          page: "https://archive.org/details/jamendo-579068",
+          url: "https://archive.org/download/jamendo-579068/01-2201538-An%20Ki-Chill%20Jazz%20x%20LoFi%2090s.mp3"
+        },
+        {
+          title: "UrbanGodzilla - Chillout LoFi Hip-Hop",
+          license: "CC BY-NC-ND 3.0",
+          page: "https://archive.org/details/jamendo-518220",
+          url: "https://archive.org/download/jamendo-518220/01-2025616-UrbanGodzilla-Chillout%20LoFi%20Hip-Hop.mp3"
+        },
+        {
+          title: "Sergei - Chill Lofi Hip Hop",
+          license: "CC BY-NC-ND 3.0",
+          page: "https://archive.org/details/jamendo-230235",
+          url: "https://archive.org/download/jamendo-230235/01-1861746-Sergei-Chill%20Lofi%20Hip%20Hop.mp3"
+        }
+      ];
+
+      function disposeParts() {
+        for (const part of [chordPart, bassPart, melodyPart, drumLoop]) {
+          if (part) {
+            part.stop();
+            part.dispose();
+          }
+        }
+        chordPart = null;
+        bassPart = null;
+        melodyPart = null;
+        drumLoop = null;
+      }
+
+      function releaseActiveVoices() {
+        if (!audioReady || !window.Tone) return;
+        const now = Tone.now();
+        if (keys && keys.releaseAll) keys.releaseAll(now);
+        if (synth && synth.triggerRelease) synth.triggerRelease(now);
+        if (bass && bass.triggerRelease) bass.triggerRelease(now);
+      }
+
+      function rampOutput(db, seconds) {
+        if (!window.Tone) return;
+        const now = Tone.now();
+        if (Tone.Destination.volume.cancelScheduledValues) {
+          Tone.Destination.volume.cancelScheduledValues(now);
+        }
+        if (Tone.Destination.volume.rampTo) {
+          Tone.Destination.volume.rampTo(db, seconds);
+        } else {
+          Tone.Destination.volume.value = db;
+        }
+      }
+
+      function setupMeter() {
+        meter.innerHTML = "";
+        meterBars = [];
+        for (let i = 0; i < 16; i++) {
+          const bar = document.createElement("span");
+          bar.className = "bar";
+          meter.appendChild(bar);
+          meterBars.push(bar);
+        }
+      }
+
+      function setupPlaylist() {
+        trackSelect.innerHTML = "";
+        onlineTracks.forEach((track, index) => {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = track.title;
+          trackSelect.appendChild(option);
+        });
+
+        playlistAudio = new Audio();
+        playlistAudio.crossOrigin = "anonymous";
+        playlistAudio.preload = "auto";
+        playlistAudio.volume = 0.78;
+        playlistAudio.addEventListener("ended", () => playOnlineTrack(trackIndex + 1));
+        playlistAudio.addEventListener("error", () => {
+          if (!playing) return;
+          status.textContent = "此線上曲目暫時無法載入，已跳到下一首。";
+          playOnlineTrack(trackIndex + 1);
+        });
+      }
+
+      async function playOnlineTrack(index = trackIndex) {
+        if (!playlistAudio) return;
+        trackIndex = (index + onlineTracks.length) % onlineTracks.length;
+        const track = onlineTracks[trackIndex];
+        trackSelect.value = String(trackIndex);
+        activeSource = "online";
+        playlistAudio.src = track.url;
+        playlistAudio.currentTime = 0;
+        await playlistAudio.play();
+        playing = true;
+        playButton.textContent = "Ⅱ";
+        status.textContent = `線上歌單循環播放：${track.title}`;
+      }
+
+      function stopOnlineTrack() {
+        if (!playlistAudio) return;
+        playlistAudio.pause();
+        playlistAudio.removeAttribute("src");
+        playlistAudio.load();
+      }
+
+      function stopGeneratedMusic() {
+        if (!audioReady || !window.Tone) return;
+        releaseActiveVoices();
+        Tone.Transport.pause();
+        Tone.Transport.cancel();
+      }
+
+      function initAudio() {
+        if (audioReady || !window.Tone) return;
+        Tone.Destination.volume.value = 0;
+        const reverb = new Tone.Reverb({ decay: 4.8, wet: 0.28 }).toDestination();
+        const delay = new Tone.FeedbackDelay("8n.", 0.28);
+        const filter = new Tone.Filter(1500, "lowpass");
+        const comp = new Tone.Compressor(-18, 3).toDestination();
+        analyser = new Tone.Analyser("waveform", 64);
+
+        keys = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "triangle8" },
+          envelope: { attack: 0.035, decay: 0.18, sustain: 0.36, release: 1.8 },
+          volume: -16
+        }).chain(filter, delay, reverb, analyser, comp);
+
+        synth = new Tone.Synth({
+          oscillator: { type: "sine" },
+          envelope: { attack: 0.02, decay: 0.12, sustain: 0.2, release: 0.8 },
+          volume: -22
+        }).chain(delay, reverb, analyser, comp);
+
+        bass = new Tone.MonoSynth({
+          oscillator: { type: "sine" },
+          filter: { Q: 1, type: "lowpass", rolloff: -24 },
+          envelope: { attack: 0.03, decay: 0.2, sustain: 0.35, release: 1.1 },
+          volume: -14
+        }).chain(analyser, comp);
+
+        kick = new Tone.MembraneSynth({ pitchDecay: 0.03, octaves: 3, volume: -12 }).chain(analyser, comp);
+        snare = new Tone.NoiseSynth({
+          noise: { type: "pink" },
+          envelope: { attack: 0.001, decay: 0.12, sustain: 0 },
+          volume: -22
+        }).chain(analyser, comp);
+        hat = new Tone.NoiseSynth({
+          noise: { type: "brown" },
+          envelope: { attack: 0.001, decay: 0.035, sustain: 0 },
+          volume: -30
+        }).chain(analyser, comp);
+
+        noise = new Tone.Noise("pink").start();
+        const rainFilter = new Tone.Filter(950, "bandpass");
+        const rainGain = new Tone.Gain(0.035).toDestination();
+        noise.chain(rainFilter, rainGain);
+
+        audioReady = true;
+      }
+
+      function buildMusic() {
+        if (!audioReady) return;
+        disposeParts();
+        Tone.Transport.cancel();
+        Tone.Transport.position = 0;
+        Tone.Transport.bpm.value = Number(tempoSlider.value);
+
+        const progression = choose(progressions);
+        chordPart = new Tone.Sequence((time, chord) => {
+          keys.triggerAttackRelease(chord, "1m", time, rand(0.38, 0.58));
+        }, progression, "1m").start(0);
+
+        bassPart = new Tone.Sequence((time, chord) => {
+          bass.triggerAttackRelease(chord[0], "2n", time, 0.58);
+        }, progression, "1m").start("0:0:2");
+
+        const melodyPool = [...new Set(progression.flat())].filter((note) => !note.includes("2"));
+        melodyPart = new Tone.Pattern((time, note) => {
+          synth.triggerAttackRelease(note, choose(["8n", "8n.", "4n"]), time, rand(0.18, 0.36));
+        }, melodyPool, "randomWalk");
+        melodyPart.interval = "8n";
+        melodyPart.probability = 0.68;
+        melodyPart.start("0:1:0");
+
+        let step = 0;
+        drumLoop = new Tone.Loop((time) => {
+          if (step % 8 === 0) kick.triggerAttackRelease("C1", "8n", time, 0.82);
+          if (step % 16 === 10) kick.triggerAttackRelease("G1", "16n", time, 0.42);
+          if (step % 8 === 4) snare.triggerAttackRelease("16n", time, 0.48);
+          if (step % 2 === 1 && Math.random() > 0.24) hat.triggerAttackRelease("32n", time, 0.26);
+          step = (step + 1) % 16;
+        }, "16n").start(0);
+      }
+
+      async function rebuildMusicSmoothly() {
+        if (!audioReady || regenerating) return;
+        regenerating = true;
+        newSceneButton.disabled = true;
+        const wasPlaying = playing && Tone.Transport.state === "started";
+
+        rampOutput(-36, 0.18);
+        releaseActiveVoices();
+        await wait(230);
+
+        if (wasPlaying) Tone.Transport.pause();
+        buildMusic();
+
+        if (wasPlaying) {
+          Tone.Transport.start("+0.05");
+          rampOutput(0, 0.65);
+        }
+
+        await wait(260);
+        regenerating = false;
+        newSceneButton.disabled = false;
+      }
+
+      async function togglePlayback() {
+        if (!playing) {
+          if (musicSourceSelect.value === "online") {
+            stopGeneratedMusic();
+            try {
+              if (activeSource === "online" && playlistAudio.src) {
+                await playlistAudio.play();
+                playing = true;
+                playButton.textContent = "Ⅱ";
+                status.textContent = `線上歌單循環播放：${onlineTracks[trackIndex].title}`;
+              } else {
+                await playOnlineTrack(trackIndex);
+              }
+            } catch (error) {
+              status.textContent = "線上曲目播放失敗，請確認網路或換下一首。";
+              playing = false;
+              playButton.textContent = "▶";
+            }
+            return;
+          }
+
+          if (!window.Tone) {
+            status.textContent = "Tone.js 尚未載入，請確認網路後重新整理。";
+            return;
+          }
+          stopOnlineTrack();
+          initAudio();
+          await Tone.start();
+          buildMusic();
+          Tone.Transport.start("+0.05");
+          playing = true;
+          activeSource = "generated";
+          playButton.textContent = "Ⅱ";
+          status.textContent = "正在生成 Lo-Fi 和弦、雨聲與隨機旋律。";
+        } else {
+          if (activeSource === "online") {
+            playlistAudio.pause();
+          } else if (window.Tone && audioReady) {
+            Tone.Transport.pause();
+          }
+          playing = false;
+          playButton.textContent = "▶";
+          status.textContent = "已暫停。再次播放會延續目前的城市夜景。";
+        }
+      }
+
+      function updateMeter() {
+        if (analyser && playing && activeSource === "generated") {
+          const data = analyser.getValue();
+          for (let i = 0; i < meterBars.length; i++) {
+            const sample = Math.abs(data[i * 3] || 0);
+            const h = 7 + clamp(sample * 90 + Math.random() * 4, 0, 34);
+            meterBars[i].style.height = `${h}px`;
+            meterBars[i].style.opacity = `${0.45 + sample * 1.5}`;
+          }
+        } else {
+          for (let i = 0; i < meterBars.length; i++) {
+            const onlinePulse = activeSource === "online" && playing ? Math.random() * 16 : 0;
+            meterBars[i].style.height = `${8 + Math.sin(animationTime * 2 + i) * 3 + onlinePulse}px`;
+            meterBars[i].style.opacity = activeSource === "online" && playing ? "0.72" : "0.45";
+          }
+        }
+        requestAnimationFrame(updateMeter);
+      }
+
+      playButton.addEventListener("click", togglePlayback);
+      musicSourceSelect.addEventListener("change", async () => {
+        if (!playing) {
+          status.textContent = musicSourceSelect.value === "online"
+            ? "已切到線上 Lo-Fi 歌單；按播放開始循環。"
+            : "已切到 Tone.js 生成模式；按播放開始生成。";
+          return;
+        }
+
+        playing = false;
+        if (activeSource === "online") {
+          stopOnlineTrack();
+        } else {
+          stopGeneratedMusic();
+        }
+        playButton.textContent = "▶";
+        await togglePlayback();
+      });
+      trackSelect.addEventListener("change", async () => {
+        trackIndex = Number(trackSelect.value);
+        if (playing && activeSource === "online") {
+          try {
+            await playOnlineTrack(trackIndex);
+          } catch (error) {
+            status.textContent = "線上曲目播放失敗，請確認網路或換下一首。";
+          }
+        }
+      });
+      nextTrackButton.addEventListener("click", async () => {
+        musicSourceSelect.value = "online";
+        if (activeSource !== "online" && playing) {
+          stopGeneratedMusic();
+          playing = false;
+        }
+        try {
+          await playOnlineTrack(trackIndex + 1);
+        } catch (error) {
+          status.textContent = "下一首暫時無法播放，請稍後再試。";
+          playing = false;
+          playButton.textContent = "▶";
+        }
+      });
+      newSceneButton.addEventListener("click", async () => {
+        if (regenerating) return;
+        generateScene();
+        if (playing && activeSource === "generated") {
+          status.textContent = "正在平滑重新生成城市與旋律。";
+          await rebuildMusicSmoothly();
+          status.textContent = "已平滑重新生成城市與旋律。";
+        } else if (playing && activeSource === "online") {
+          status.textContent = `已重新生成城市；線上歌單繼續播放：${onlineTracks[trackIndex].title}`;
+        } else {
+          status.textContent = "已重新生成城市；按播放產生新音樂。";
+        }
+      });
+      moodSelect.addEventListener("change", async () => {
+        if (regenerating) return;
+        generateScene();
+        if (playing && activeSource === "generated") await rebuildMusicSmoothly();
+      });
+      tempoSlider.addEventListener("input", () => {
+        tempoText.textContent = `${tempoSlider.value} BPM`;
+        if (window.Tone && audioReady) Tone.Transport.bpm.rampTo(Number(tempoSlider.value), 0.4);
+      });
+      rainSlider.addEventListener("input", () => {
+        rainText.textContent = `${rainSlider.value}%`;
+      });
+      dustSlider.addEventListener("input", () => {
+        dustText.textContent = `${dustSlider.value}%`;
+      });
+      window.addEventListener("resize", resize);
+
+      setupMeter();
+      setupPlaylist();
+      resize();
+      requestAnimationFrame(render);
+      requestAnimationFrame(updateMeter);
+    })();
+  </script>
+</body>
+</html>
