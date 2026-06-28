@@ -52,6 +52,17 @@
       box-shadow: 0 16px 60px rgba(0, 0, 0, 0.45), inset 0 1px rgba(255, 255, 255, 0.08);
       color: var(--ink);
       backdrop-filter: blur(18px);
+      opacity: 0.16;
+      transform: translateY(8px);
+      transition: opacity 220ms ease, transform 220ms ease, background 220ms ease, border-color 220ms ease;
+    }
+
+    .controls:hover,
+    .controls:focus-within {
+      border-color: rgba(255, 164, 236, 0.52);
+      background: linear-gradient(135deg, rgba(15, 13, 34, 0.88), rgba(36, 17, 49, 0.68));
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .topline {
@@ -205,6 +216,8 @@
         right: 10px;
         bottom: 10px;
         width: auto;
+        opacity: 0.72;
+        transform: none;
       }
 
       .grid {
@@ -221,6 +234,10 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
+      .controls {
+        transition: none;
+      }
+
       button {
         transition: none;
       }
